@@ -10,10 +10,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// sanitizeChanges performs some pre-processing of the changes map for "known" cases that we'd like to handle.
-// Currently, these include:
-// - Empty strings are converted to nil
-// - Empty slices are converted to nil
+// taken verbatim from https://github.com/CMSgov/easi-app/pull/1760
 func sanitizeChanges(changes map[string]interface{}) {
 	for key, value := range changes {
 		// Get the reflect value for type comparisons
@@ -39,9 +36,7 @@ func sanitizeChanges(changes map[string]interface{}) {
 	}
 }
 
-// applyChanges applies arbitrary changes from a map to a struct
-// Code largely copied from GQLGen's docs on changesets
-// https://gqlgen.com/reference/changesets/
+// taken verbatim from https://github.com/CMSgov/easi-app/pull/1760
 func applyChanges(changes map[string]interface{}, to interface{}) error {
 	sanitizeChanges(changes)
 
@@ -79,13 +74,7 @@ func applyChanges(changes map[string]interface{}, to interface{}) error {
 	return dec.Decode(changes)
 }
 
-func ApplyChangesWrapper(changes map[string]interface{}, modifier string, to interface{}) error {
-	changesWithModifier := changes
-	changesWithModifier["modifiedBy"] = modifier
-	return applyChanges(changesWithModifier, to)
-}
-
-// baseStruct represents the shared data in common betwen all models
+// taken verbatim from https://github.com/CMSgov/easi-app/pull/1760
 type baseStruct struct {
 	ID          uuid.UUID  `json:"id" db:"id"`
 	CreatedBy   string     `json:"createdBy" db:"created_by"`
@@ -94,12 +83,23 @@ type baseStruct struct {
 	ModifiedDts *time.Time `json:"modifiedDts" db:"modified_dts"`
 }
 
+// taken verbatim from https://github.com/CMSgov/easi-app/pull/1760
 func NewBaseStruct(createdBy string) baseStruct {
 	return baseStruct{
 		CreatedBy: createdBy,
 	}
 }
 
+// theoretically, *this* would be the only exported function (with a better name);
+// applying changes would also require supplying a modifier
+func ApplyChangesWrapper(changes map[string]interface{}, modifier string, to interface{}) error {
+	changesWithModifier := changes
+	changesWithModifier["modifiedBy"] = modifier
+	// TODO - potentially set modifiedDts/modifiedAt as well
+	return applyChanges(changesWithModifier, to)
+}
+
+// example struct with BaseStruct metadata
 type WeatherReport struct {
 	baseStruct
 	City    string `json:"city"`
@@ -128,6 +128,10 @@ func (report WeatherReport) Print() {
 func main() {
 	report := NewWeatherReport("Dylan", "Clearwater", "Hot and sunny")
 	report.Print()
+	// should print:
+	// City: Clearwater
+	// Weather: Hot and sunny
+	// Last reported by: Dylan
 
 	fmt.Println()
 	fmt.Println("Making changes...")
@@ -139,4 +143,8 @@ func main() {
 	modifier := "Mr. Weatherdude"
 	ApplyChangesWrapper(changes, modifier, &report)
 	report.Print()
+	// should print:
+	// City: Clearwater
+	// Weather: Thunderstorms
+	// Last reported by: Mr. Weatherdude
 }
